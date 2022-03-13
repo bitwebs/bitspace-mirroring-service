@@ -1,6 +1,6 @@
 {
   "name": "bitspace-mirroring-service",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A Bitspace service with a RPC API for mirroring.",
   "main": "index.js",
   "bin": {

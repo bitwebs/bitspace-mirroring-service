@@ -1,40 +1,40 @@
-# hyperspace-mirroring-service
-A Hyperspace service with a RPC API for mirroring.
+# bitspace-mirroring-service
+A Bitspace service with a RPC API for mirroring.
 
 ## Installation
 ```
-npm i hyperspace-mirroring-service
+npm i bitspace-mirroring-service
 ```
 
 ## Usage
-This service is meant to run alongside a running Hyperspace server.
+This service is meant to run alongside a running Bitspace server.
 
-With Hyperspace running in a separate terminal:
+With Bitspace running in a separate terminal:
 ```sh
 ❯ ./bin/index.js
-Running hyperspace-mirror/1.0.6 linux-x64 node-v14.15.0
-Listening on /tmp/hyperspace-mirroring.sock
+Running bitspace-mirror/1.0.6 linux-x64 node-v14.15.0
+Listening on /tmp/bitspace-mirroring.sock
 ```
 
-Then you can import `hyperspace-mirroring-service/client` inside a script, and it will auto-connect to the running server.
+Then you can import `bitspace-mirroring-service/client` inside a script, and it will auto-connect to the running server.
 
-The mirror service provides an [HRPC](https://github.com/mafintosh/hrpc) endpoint with methods for mirroring, unmirror, and listing mirroed Hypercore-based data structures.
+The mirror service provides an [HRPC](https://github.com/mafintosh/hrpc) endpoint with methods for mirroring, unmirror, and listing mirroed Unichain-based data structures.
 
-Currently it supports mirroring Hyperdrives and individual Hypercores. It doesn't do data-structure detection by looking at Hypercore headers -- you gotta explicitly provide the type.
+Currently it supports mirroring Bitdrives and individual Unichains. It doesn't do data-structure detection by looking at Unichain headers -- you gotta explicitly provide the type.
 
-As of now, Hyperdrive mirroring doesn't handle mounts. Maybe one day
+As of now, Bitdrive mirroring doesn't handle mounts. Maybe one day
 
 ## API
 
 #### `await client.mirror(key, type)`
-Start mirroring a Hypercore-based data structure.
+Start mirroring a Unichain-based data structure.
 
-This command will currently special-case the `hyperdrive` type, mirroring both metadata and content feeds.
+This command will currently special-case the `bitdrive` type, mirroring both metadata and content feeds.
 
 #### `await client.unmirror(key, type)`
-Stop mirroring a Hypercore-based data structure.
+Stop mirroring a Unichain-based data structure.
 
-This command will currently special-case the `hyperdrive` type, unmirroring both metadata and content feeds.
+This command will currently special-case the `bitdrive` type, unmirroring both metadata and content feeds.
 
 #### `await client.status(key, type)`
 Check if a data structure is being mirrored;
