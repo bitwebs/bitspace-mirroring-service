@@ -1,15 +1,15 @@
 const { NanoresourcePromise: Nanoresource } = require('nanoresource-promise/emitter')
 const Client = require('./client')
-const HyperspaceClient = require('@hyperspace/client')
-const Hyperbee = require('hyperbee')
-const hyperdrive = require('hyperdrive')
+const BitspaceClient = require('bitspace-client')
+const Bittree = require('@web4/bittree')
+const bitdrive = require('@web4/bitdrive')
 
 const RPC = require('./rpc')
 const getNetworkOptions = require('./rpc/socket.js')
 
-const DB_NAMESPACE = 'hyperspace-mirroring-service'
+const DB_NAMESPACE = 'bitspace-mirroring-service'
 const DB_VERSION = 'v1'
-const CORES_SUB = 'cores'
+const CHAINS_SUB = 'chains'
 const TYPES_SUB = 'types'
 
 module.exports = class MirroringService extends Nanoresource {
@@ -18,10 +18,10 @@ module.exports = class MirroringService extends Nanoresource {
     this.server = RPC.createServer(opts.server, this._onConnection.bind(this))
     this.mirroring = new Set()
     this.downloads = new Map()
-    this.hsClient = null
+    this.bsClient = null
     this.db = null
 
-    this._corestore = null
+    this._chainstore = null
     this._socketOpts = getNetworkOptions(opts)
   }
 
@@ -36,16 +36,16 @@ module.exports = class MirroringService extends Nanoresource {
     } catch (_) {}
     if (running) throw new Error('A mirroring server is already running on that host/port.')
 
-    this.hsClient = new HyperspaceClient()
-    await this.hsClient.ready()
-    this._corestore = this.hsClient.corestore(DB_NAMESPACE)
+    this.bsClient = new BitspaceClient()
+    await this.bsClient.ready()
+    this._chainstore = this.bsClient.chainstore(DB_NAMESPACE)
 
-    const rootDb = new Hyperbee(this._corestore.default(), {
+    const rootDb = new Bittree(this._chainstore.default(), {
       keyEncoding: 'utf-8',
       valueEncoding: 'json'
     }).sub(DB_VERSION)
     await rootDb.ready()
-    this.coresDb = rootDb.sub(CORES_SUB)
+    this.chainsDb = rootDb.sub(CHAINS_SUB)
     this.typesDb = rootDb.sub(TYPES_SUB)
 
     await this.server.listen(this._socketOpts)
@@ -54,21 +54,21 @@ module.exports = class MirroringService extends Nanoresource {
 
   async _close () {
     await this.server.close()
-    for (const { core, request } of  this.downloads.values()) {
-      core.undownload(request)
+    for (const { chain, request } of  this.downloads.values()) {
+      chain.undownload(request)
     }
     this.downloads.clear()
     this.mirroring.clear()
-    await this.hsClient.close()
+    await this.bsClient.close()
   }
 
   // Mirroring Methods
 
-  async _getDriveCores (key, replicate) {
-    const drive = hyperdrive(this._corestore, key)
+  async _getDriveChains (key, replicate) {
+    const drive = bitdrive(this._chainstore, key)
     drive.on('error', noop)
     await drive.promises.ready()
-    if (replicate) await this.hsClient.replicate(drive.metadata)
+    if (replicate) await this.bsClient.replicate(drive.metadata)
     return new Promise((resolve, reject) => {
       drive.getContent((err, content) => {
         if (err) return reject(err)
@@ -78,73 +78,73 @@ module.exports = class MirroringService extends Nanoresource {
   }
 
   async _restartMirroring () {
-    for await (const { key } of this.coresDb.createReadStream()) {
-      await this._mirrorCore(key)
+    for await (const { key } of this.chainsDb.createReadStream()) {
+      await this._mirrorChain(key)
     }
   }
 
-  async _mirrorCore (key, core, noReplicate) {
-    core = core || this._corestore.get(key)
-    await core.ready()
-    if (!noReplicate) await this.hsClient.replicate(core)
+  async _mirrorChain (key, chain, noReplicate) {
+    chain = chain || this._chainstore.get(key)
+    await chain.ready()
+    if (!noReplicate) await this.bsClient.replicate(chain)
     const keyString = (typeof key === 'string') ? key : key.toString('hex')
     this.downloads.set(keyString, {
-      core,
-      request: core.download()
+      chain,
+      request: chain.download()
     })
     // TODO: What metadata should we store?
-    await this.coresDb.put(keyString, {})
+    await this.chainsDb.put(keyString, {})
     this.mirroring.add(keyString)
   }
 
   // TODO: Make mount-aware
   async _mirrorDrive (key) {
-    const { content, metadata } = await this._getDriveCores(key, true)
+    const { content, metadata } = await this._getDriveChains(key, true)
     return Promise.all([
-      this._mirrorCore(metadata.key, metadata, true),
-      this._mirrorCore(content.key, content, true)
+      this._mirrorChain(metadata.key, metadata, true),
+      this._mirrorChain(content.key, content, true)
     ])
   }
 
-  async _unmirrorCore (key, noUnreplicate) {
+  async _unmirrorChain (key, noUnreplicate) {
     const keyString = (typeof key === 'string') ? key : key.toString('hex')
     if (!this.downloads.has(keyString)) return
-    const { core, request } = this.downloads.get(keyString)
-    if (!noUnreplicate) await this.hsClient.network.configure(core.discoveryKey, {
+    const { chain, request } = this.downloads.get(keyString)
+    if (!noUnreplicate) await this.bsClient.network.configure(chain.discoveryKey, {
       announce: false
     })
-    core.undownload(request)
+    chain.undownload(request)
     this.downloads.delete(keyString)
     this.mirroring.delete(keyString)
-    return this.coresDb.del(keyString)
+    return this.chainsDb.del(keyString)
   }
 
   // TODO: Make mount-aware
   async _unmirrorDrive (key) {
     const keyString = (typeof key === 'string') ? key : key.toString('hex')
     if (!this.downloads.has(keyString)) return
-    const { metadata, content } = await this._getDriveCores(key)
-    await this.hsClient.network.configure(metadata.discoveryKey, {
+    const { metadata, content } = await this._getDriveChains(key)
+    await this.bsClient.network.configure(metadata.discoveryKey, {
       announce: false
     })
     return Promise.all([
-      this._unmirrorCore(metadata.key),
-      this._unmirrorCore(content.key)
+      this._unmirrorChain(metadata.key),
+      this._unmirrorChain(content.key)
     ])
   }
 
   async _mirror ({ key, type }) {
     if (typeof key === 'string') key = Buffer.from(key, 'hex')
-    if (!type || type === 'hypercore') await this._mirrorCore(key)
-    else if (type === 'hyperdrive') await this._mirrorDrive(key)
+    if (!type || type === 'unichain') await this._mirrorChain(key)
+    else if (type === 'bitdrive') await this._mirrorDrive(key)
     await this.typesDb.put(key.toString('hex'), type)
     return this._status({ key, type })
   }
 
   async _unmirror ({ key, type }) {
     if (typeof key === 'string') key = Buffer.from(key, 'hex')
-    if (!type || type === 'hypercore') await this._unmirrorCore(key)
-    else if (type === 'hyperdrive') await this._unmirrorDrive(key)
+    if (!type || type === 'unichain') await this._unmirrorChain(key)
+    else if (type === 'bitdrive') await this._unmirrorDrive(key)
     await this.typesDb.del(key.toString('hex'))
     return this._status({ key, type })
   }

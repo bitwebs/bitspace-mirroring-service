@@ -1,6 +1,6 @@
 syntax = "proto2";
 
-package hyperspace_mirror;
+package bitspace_mirror;
 import "hrpc.proto";
 
 message MirrorRequest {
