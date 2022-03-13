@@ -1,6 +1,6 @@
 const { NanoresourcePromise: Nanoresource } = require('nanoresource-promise/emitter')
 const Client = require('./client')
-const BitspaceClient = require('bitspace-client')
+const BitspaceClient = require('bitspace/client')
 const Bittree = require('@web4/bittree')
 const bitdrive = require('@web4/bitdrive')
 
